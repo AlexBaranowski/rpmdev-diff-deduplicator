@@ -29,6 +29,11 @@ deduplicated as promised ;)!
 
 Run `./src/tests.py`
 
+## Limitations
+
+- Currently all rpms are compared with the with first occurance on the file
+  system.
+- Currently only hardlinks are supported. That means that files must be on the same filesystem.
 
 ## Why?
 

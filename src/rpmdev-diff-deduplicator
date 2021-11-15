@@ -7,12 +7,24 @@
 from shutil import which
 import argparse
 import sys
-from os import path, walk
+from os import path, walk, stat, remove, link
+from subprocess import run
 
 N_COMMANDS = ('rpmdev-diff', 'ln')
 
 
-def check_system_commands():
+def create_parser():
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument('path', help="path that will be deduplicated")
+    parser.add_argument('-d', '--dryrun', help="Dry Run", default=False, action="store_true")
+    return parser
+
+
+def safety_checks(deduplicate_path):
+    if not path.isdir(deduplicate_path):
+        print(f"Sorry there is no such {deduplicate_path} directory")
+        exit(1)
+    # check necessary commands
     fail_flag = False
     for i in N_COMMANDS:
         if which(i) is None:
@@ -22,36 +34,78 @@ def check_system_commands():
         exit(1)
 
 
-def create_parser():
-    parser = argparse.ArgumentParser(add_help=True)
-    parser.add_argument('path', help="path that will be deduplicated")
-    parser.add_argument('-d', '--dryrun', help="Dry Run", default=False, action="store_true")
-    return parser
-
-def safety_checks(deduplicate_path):
-    if not path.isdir(deduplicate_path):
-        print(f"Sorry there is no such {deduplicate_path} directory")
-        exit(1) 
-
-
 def create_rpms_names_paths_directory(deduplicate_path):
     rv = {}
     for paths, dirs, files in walk(deduplicate_path):
         for f in files:
             if f.endswith('noarch.rpm') or f.endswith("src.rpm"):
-                print(f"{paths}, {f}")
-    
+                if f in rv:
+                    rv[f].append(paths)
+                else:
+                    rv[f] = [paths]
     return rv
 
 
+def remove_create_hard_link(orig, remove_this_and_link, dry_run=True):
+    if dry_run:
+        print(f"Dry Run -> {remove_this_and_link} would be removed and hardlinked to {orig}")
+    else:
+        print("Removing -> {remove_this_and_link}")
+        remove(f"{remove_this_and_link}")
+        print(f"Creating hardlink {remove_this_and_link} to {orig}")
+        link(orig, remove_this_and_link)
+
+
+def compare_with_inode_and_rpmdiff(path1, path2):
+    """
+    Checks with returns:
+    return 2 when files are residing on different device (st_dev)
+    return -1 when paths have same inode
+    return 0 when files differ according to rpmdev-diff
+    return 1 when files are the according to rpmdev-diff and has different inode
+    """
+    stat_path1 = stat(path1)
+    stat_path2 = stat(path2)
+
+    if stat_path1.st_dev != stat_path2.st_dev:
+        print(f"Warning -> {path1} and {path2} are on different devices!")
+        return 2
+
+    if stat_path1.st_ino == stat_path2.st_ino:
+        return -1
+
+    rpmdiff_process = run(['rpmdev-diff', path1, path2])
+    if rpmdiff_process.returncode == 0:
+        return 1
+
+    return 0
+
+
+def deduplicate_with_rpmdevdiff(npd, dry_run=True):
+    """
+    npd - name paths dictionary
+    """
+    for name in npd:
+        first_path = npd[name][0]+f'/{name}'
+        for next_dir_path in npd[name][1:]:
+            next_path = next_dir_path+f'/{name}'
+            # TODO this and this
+            print(f"Comparing {first_path} with {next_path}")
+            compare_result = compare_with_inode_and_rpmdiff(first_path, next_path)
+            if compare_result == 1:
+                print(f"Deduplicationg {next_path} with {first_path}")
+                remove_create_hard_link(first_path, next_path)
+
+
 def main():
-    check_system_commands()
     parser = create_parser()
     args = parser.parse_args(sys.argv[1:])
     deduplicate_path = args.path
     dry_run = args.dryrun
     safety_checks(deduplicate_path)
     rpms_names_paths = create_rpms_names_paths_directory(deduplicate_path)
+    print(rpms_names_paths)
+    deduplicate_with_rpmdevdiff(rpms_names_paths, dry_run=dry_run)
 
 
 if __name__ == "__main__":
