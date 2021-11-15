@@ -11,12 +11,14 @@ from os import path, walk, stat, remove, link
 from subprocess import run
 
 N_COMMANDS = ('rpmdev-diff', 'ln')
+VERBOSE = False
 
 
 def create_parser():
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('path', help="path that will be deduplicated")
-    parser.add_argument('-d', '--dryrun', help="Dry Run", default=False, action="store_true")
+    parser.add_argument('-d', '--dryrun', help="Dry run", default=False, action="store_true")
+    parser.add_argument('-v', '--verbose', help="Enable verbose mode", default=False, action="store_true")
     return parser
 
 
@@ -50,7 +52,8 @@ def remove_create_hard_link(orig, remove_this_and_link, dry_run=True):
     if dry_run:
         print(f"Dry Run -> {remove_this_and_link} would be removed and hardlinked to {orig}")
     else:
-        print(f"Removing -> {remove_this_and_link}")
+        if VERBOSE:
+            print(f"Removing -> {remove_this_and_link}")
         remove(f"{remove_this_and_link}")
         print(f"Creating hardlink {remove_this_and_link} to {orig}")
         link(orig, remove_this_and_link)
@@ -89,11 +92,12 @@ def deduplicate_with_rpmdevdiff(npd, dry_run=True):
         first_path = npd[name][0]+f'/{name}'
         for next_dir_path in npd[name][1:]:
             next_path = next_dir_path+f'/{name}'
-            # TODO this and this
-            print(f"Comparing {first_path} with {next_path}")
+            if VERBOSE:
+                print(f"Comparing {first_path} with {next_path}")
             compare_result = compare_with_inode_and_rpmdiff(first_path, next_path)
             if compare_result == 1:
-                print(f"Deduplicationg {next_path} with {first_path}")
+                if VERBOSE:
+                    print(f"Deduplicating {next_path} with {first_path}")
                 remove_create_hard_link(first_path, next_path, dry_run)
 
 
@@ -102,9 +106,13 @@ def main():
     args = parser.parse_args(sys.argv[1:])
     deduplicate_path = args.path
     dry_run = args.dryrun
+    global VERBOSE
+    VERBOSE = args.verbose
     safety_checks(deduplicate_path)
     rpms_names_paths = create_rpms_names_paths_directory(deduplicate_path)
-    print(rpms_names_paths)
+
+    if VERBOSE:
+        print(rpms_names_paths)
     deduplicate_with_rpmdevdiff(rpms_names_paths, dry_run=dry_run)
 
 
