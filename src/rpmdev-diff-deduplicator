@@ -50,7 +50,7 @@ def remove_create_hard_link(orig, remove_this_and_link, dry_run=True):
     if dry_run:
         print(f"Dry Run -> {remove_this_and_link} would be removed and hardlinked to {orig}")
     else:
-        print("Removing -> {remove_this_and_link}")
+        print(f"Removing -> {remove_this_and_link}")
         remove(f"{remove_this_and_link}")
         print(f"Creating hardlink {remove_this_and_link} to {orig}")
         link(orig, remove_this_and_link)
@@ -94,7 +94,7 @@ def deduplicate_with_rpmdevdiff(npd, dry_run=True):
             compare_result = compare_with_inode_and_rpmdiff(first_path, next_path)
             if compare_result == 1:
                 print(f"Deduplicationg {next_path} with {first_path}")
-                remove_create_hard_link(first_path, next_path)
+                remove_create_hard_link(first_path, next_path, dry_run)
 
 
 def main():
