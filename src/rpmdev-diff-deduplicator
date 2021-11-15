@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+
+# Author: Alex Baranowski <alex@euro-linux.com>
+# License: GPLv2 - copyleft all rights reversed
+
+
+from shutil import which
+import argparse
+import sys
+from os import path, walk
+
+N_COMMANDS = ('rpmdev-diff', 'ln')
+
+
+def check_system_commands():
+    fail_flag = False
+    for i in N_COMMANDS:
+        if which(i) is None:
+            print(f"Sorry there is no {i} program available. It is necessary for this script.")
+            fail_flag = True
+    if fail_flag:
+        exit(1)
+
+
+def create_parser():
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument('path', help="path that will be deduplicated")
+    parser.add_argument('-d', '--dryrun', help="Dry Run", default=False, action="store_true")
+    return parser
+
+def safety_checks(deduplicate_path):
+    if not path.isdir(deduplicate_path):
+        print(f"Sorry there is no such {deduplicate_path} directory")
+        exit(1) 
+
+
+def create_rpms_names_paths_directory(deduplicate_path):
+    rv = {}
+    for paths, dirs, files in walk(deduplicate_path):
+        for f in files:
+            if f.endswith('noarch.rpm') or f.endswith("src.rpm"):
+                print(f"{paths}, {f}")
+    
+    return rv
+
+
+def main():
+    check_system_commands()
+    parser = create_parser()
+    args = parser.parse_args(sys.argv[1:])
+    deduplicate_path = args.path
+    dry_run = args.dryrun
+    safety_checks(deduplicate_path)
+    rpms_names_paths = create_rpms_names_paths_directory(deduplicate_path)
+
+
+if __name__ == "__main__":
+    main()
