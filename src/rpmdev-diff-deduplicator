@@ -49,6 +49,10 @@ def create_rpms_names_paths_directory(deduplicate_path):
 
 
 def remove_create_hard_link(orig, remove_this_and_link, dry_run=True):
+    orig_timestamp = path.getmtime(orig)
+    remove_this_and_link_timestamp = path.getmtime(remove_this_and_link)
+    if orig_timestamp <= remove_this_and_link_timestamp:
+        orig, remove_this_and_link = remove_this_and_link, orig
     if dry_run:
         print(f"Dry Run -> {remove_this_and_link} would be removed and hardlinked to {orig}")
     else:
